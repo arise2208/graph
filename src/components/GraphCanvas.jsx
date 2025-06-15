@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
+import NodeTable from "./NodeTable";
 
 export default function GraphCanvas() {
   const canvasRef = useRef(null);
@@ -20,6 +21,7 @@ export default function GraphCanvas() {
   const [pathsBetweenNodes, setPathsBetweenNodes] = useState([]);
   const [foundCycles, setFoundCycles] = useState([]);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, nodeId: null });
+  const [showNodeTable, setShowNodeTable] = useState(false);
 
   const width = 1000, height = 600;
   const dpr = window.devicePixelRatio || 1;
@@ -75,6 +77,54 @@ export default function GraphCanvas() {
     setEdges(prev => prev.map(e => ({ ...e, highlighted: false, color: "#6b7280" })));
     setFoundCycles([]);
     setPathsBetweenNodes([]);
+  }
+
+  // --- Node Table Integration ---
+  function handleNodesUpdate(tableNodes) {
+    setNodes(prevNodes => {
+      const updatedNodes = [...prevNodes];
+      
+      // Update existing nodes with new labels
+      tableNodes.forEach(tableNode => {
+        const existingIndex = updatedNodes.findIndex(n => n.id === tableNode.id);
+        if (existingIndex >= 0) {
+          updatedNodes[existingIndex] = {
+            ...updatedNodes[existingIndex],
+            label: tableNode.label
+          };
+        } else {
+          // Add new node if it doesn't exist
+          const radius = Math.min(width, height) * 0.32;
+          const centerX = width / 2;
+          const centerY = height / 2;
+          const angle = (2 * Math.PI * updatedNodes.length) / (updatedNodes.length + 1);
+          
+          updatedNodes.push({
+            id: tableNode.id,
+            x: centerX + radius * Math.cos(angle),
+            y: centerY + radius * Math.sin(angle),
+            label: tableNode.label,
+            color: "#2563eb",
+            visited: false,
+            distance: Infinity,
+            parent: null
+          });
+        }
+      });
+      
+      // Remove nodes that are no longer in the table
+      const tableNodeIds = new Set(tableNodes.map(n => n.id));
+      const filteredNodes = updatedNodes.filter(n => tableNodeIds.has(n.id));
+      
+      return filteredNodes;
+    });
+    
+    // Also update the input text to reflect changes
+    const nodeLines = tableNodes.map(n => n.id.toString());
+    const edgeLines = input.split('\n').filter(line => 
+      line.trim() && /^\d+\s+\d+(\s+\d+)?$/.test(line.trim())
+    );
+    setInput([...nodeLines, ...edgeLines].join('\n'));
   }
 
   // --- Mouse and Node Helpers ---
@@ -678,184 +728,239 @@ export default function GraphCanvas() {
     <div className="min-h-screen bg-gray-50">
       {/* Simple Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <h1 className="text-xl font-semibold text-gray-900">Graph Editor</h1>
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold text-gray-900">Graph Editor</h1>
+            <button
+              onClick={() => setShowNodeTable(!showNodeTable)}
+              className={`px-4 py-2 rounded text-sm font-medium ${
+                showNodeTable 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              {showNodeTable ? 'Hide' : 'Show'} Node Table
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-4">
-        {/* Compact Controls */}
-        <div className="bg-white rounded-lg border border-gray-200 mb-4">
-          <div className="p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              {/* Graph Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Graph</label>
-                <textarea
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={6}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  disabled={isAnimating}
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-                    onClick={parseInput}
-                    disabled={isAnimating}
-                  >
-                    Generate
-                  </button>
-                  <button
-                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-                    onClick={resetAlgorithmState}
-                    disabled={isAnimating}
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-
-              {/* Algorithms */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Algorithms</label>
-                <div className="space-y-2">
-                  <button
-                    className={`w-full px-3 py-2 rounded text-sm ${
-                      currentAlgorithm === "cycles" 
-                        ? "bg-red-600 text-white" 
-                        : "bg-red-100 hover:bg-red-200 text-red-700"
-                    }`}
-                    onClick={() => runAlgorithm("cycles")}
-                    disabled={isAnimating}
-                  >
-                    Detect Cycles
-                  </button>
-                  <button
-                    className={`w-full px-3 py-2 rounded text-sm ${
-                      currentAlgorithm === "findpaths" 
-                        ? "bg-teal-600 text-white" 
-                        : "bg-teal-100 hover:bg-teal-200 text-teal-700"
-                    }`}
-                    onClick={() => {
-                      resetAlgorithmState();
-                      setCurrentAlgorithm("findpaths");
-                    }}
-                    disabled={isAnimating}
-                  >
-                    Find Paths
-                  </button>
-                  {currentAlgorithm === "findpaths" && selectedNodes.length === 2 && (
-                    <button
-                      className="w-full bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-sm"
-                      disabled={isAnimating}
-                      onClick={() => runAlgorithm("findpaths")}
-                    >
-                      Show: {selectedNodes[0]} → {selectedNodes[1]}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Settings */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Settings</label>
-                <div className="space-y-3">
-                  <label className="flex items-center text-sm">
-                    <input
-                      type="checkbox"
-                      checked={isDirected}
-                      onChange={e => setIsDirected(e.target.checked)}
-                      disabled={isAnimating}
-                      className="mr-2"
-                    />
-                    Directed
-                  </label>
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          {/* Left Column - Controls */}
+          <div className="xl:col-span-2">
+            {/* Compact Controls */}
+            <div className="bg-white rounded-lg border border-gray-200 mb-4">
+              <div className="p-4">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                  {/* Graph Input */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Speed: {speed}ms</label>
-                    <input
-                      type="range"
-                      min="100"
-                      max="2000"
-                      value={speed}
-                      onChange={e => setSpeed(Number(e.target.value))}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Graph</label>
+                    <textarea
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={6}
+                      value={input}
+                      onChange={e => setInput(e.target.value)}
                       disabled={isAnimating}
-                      className="w-full"
                     />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                        onClick={parseInput}
+                        disabled={isAnimating}
+                      >
+                        Generate
+                      </button>
+                      <button
+                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                        onClick={resetAlgorithmState}
+                        disabled={isAnimating}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Algorithms */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Algorithms</label>
+                    <div className="space-y-2">
+                      <button
+                        className={`w-full px-3 py-2 rounded text-sm ${
+                          currentAlgorithm === "cycles" 
+                            ? "bg-red-600 text-white" 
+                            : "bg-red-100 hover:bg-red-200 text-red-700"
+                        }`}
+                        onClick={() => runAlgorithm("cycles")}
+                        disabled={isAnimating}
+                      >
+                        Detect Cycles
+                      </button>
+                      <button
+                        className={`w-full px-3 py-2 rounded text-sm ${
+                          currentAlgorithm === "findpaths" 
+                            ? "bg-teal-600 text-white" 
+                            : "bg-teal-100 hover:bg-teal-200 text-teal-700"
+                        }`}
+                        onClick={() => {
+                          resetAlgorithmState();
+                          setCurrentAlgorithm("findpaths");
+                        }}
+                        disabled={isAnimating}
+                      >
+                        Find Paths
+                      </button>
+                      {currentAlgorithm === "findpaths" && selectedNodes.length === 2 && (
+                        <button
+                          className="w-full bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-sm"
+                          disabled={isAnimating}
+                          onClick={() => runAlgorithm("findpaths")}
+                        >
+                          Show: {selectedNodes[0]} → {selectedNodes[1]}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Settings */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Settings</label>
+                    <div className="space-y-3">
+                      <label className="flex items-center text-sm">
+                        <input
+                          type="checkbox"
+                          checked={isDirected}
+                          onChange={e => setIsDirected(e.target.checked)}
+                          disabled={isAnimating}
+                          className="mr-2"
+                        />
+                        Directed
+                      </label>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Speed: {speed}ms</label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="2000"
+                          value={speed}
+                          onChange={e => setSpeed(Number(e.target.value))}
+                          disabled={isAnimating}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Layout */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Layout</label>
+                    <button
+                      className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm disabled:opacity-50"
+                      onClick={() => hangTreeFromRoot()}
+                      disabled={isAnimating || selectedNodes.length === 0}
+                    >
+                      Tree Layout
+                    </button>
+                    {selectedNodes.length > 0 && (
+                      <div className="mt-2 text-xs text-blue-600">
+                        Selected: {selectedNodes.join(", ")}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Layout */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Layout</label>
-                <button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm disabled:opacity-50"
-                  onClick={() => hangTreeFromRoot()}
-                  disabled={isAnimating || selectedNodes.length === 0}
-                >
-                  Tree Layout
-                </button>
-                {selectedNodes.length > 0 && (
-                  <div className="mt-2 text-xs text-blue-600">
-                    Selected: {selectedNodes.join(", ")}
+            {/* Canvas */}
+            <div className="flex justify-center">
+              <div className="border border-gray-300 rounded-lg bg-white relative">
+                <canvas
+                  ref={canvasRef}
+                  width={width * dpr}
+                  height={height * dpr}
+                  style={{ 
+                    width: `${width}px`, 
+                    height: `${height}px`, 
+                    display: "block",
+                    cursor: isAnimating ? 'wait' : (isDragging ? 'grabbing' : 'grab')
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onContextMenu={handleContextMenu}
+                  className="select-none"
+                />
+                
+                {/* Context Menu */}
+                {contextMenu.visible && (
+                  <div
+                    style={{
+                      position: "fixed",
+                      left: contextMenu.x,
+                      top: contextMenu.y,
+                      zIndex: 1000,
+                      background: "white",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      minWidth: 150
+                    }}
+                  >
+                    <button
+                      className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
+                      onClick={() => editNodeLabel(contextMenu.nodeId)}
+                    >
+                      Edit Label
+                    </button>
+                    <button
+                      className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-t border-gray-200"
+                      onClick={() => hangTreeFromRootRightClick(contextMenu.nodeId)}
+                    >
+                      Tree from Here
+                    </button>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Canvas */}
-        <div className="flex justify-center">
-          <div className="border border-gray-300 rounded-lg bg-white relative">
-            <canvas
-              ref={canvasRef}
-              width={width * dpr}
-              height={height * dpr}
-              style={{ 
-                width: `${width}px`, 
-                height: `${height}px`, 
-                display: "block",
-                cursor: isAnimating ? 'wait' : (isDragging ? 'grabbing' : 'grab')
-              }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onContextMenu={handleContextMenu}
-              className="select-none"
-            />
+            {/* Results */}
+            {algorithmState.cycleCount > 0 && (
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-medium text-red-800 mb-2">
+                  Found {algorithmState.cycleCount} cycle{algorithmState.cycleCount > 1 ? 's' : ''}
+                </h3>
+                <div className="text-sm text-red-700 space-y-1">
+                  {foundCycles.map((cycle, idx) => (
+                    <div key={idx}>{cycle.join(" → ")}</div>
+                  ))}
+                </div>
+              </div>
+            )}
             
-            {/* Context Menu */}
-            {contextMenu.visible && (
-              <div
-                style={{
-                  position: "fixed",
-                  left: contextMenu.x,
-                  top: contextMenu.y,
-                  zIndex: 1000,
-                  background: "white",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                  borderRadius: 4,
-                  border: "1px solid #d1d5db",
-                  minWidth: 150
-                }}
-              >
-                <button
-                  className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
-                  onClick={() => editNodeLabel(contextMenu.nodeId)}
-                >
-                  Edit Label
-                </button>
-                <button
-                  className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-t border-gray-200"
-                  onClick={() => hangTreeFromRootRightClick(contextMenu.nodeId)}
-                >
-                  Tree from Here
-                </button>
+            {pathsBetweenNodes.length > 0 && (
+              <div className="mt-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
+                <h3 className="font-medium text-teal-800 mb-2">
+                  Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {selectedNodes[0]} and {selectedNodes[1]}
+                </h3>
+                <div className="text-sm text-teal-700 space-y-1">
+                  {pathsBetweenNodes.map((path, idx) => (
+                    <div key={idx}>{path.join(" → ")}</div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
+
+          {/* Right Column - Node Table */}
+          {showNodeTable && (
+            <div className="xl:col-span-1">
+              <NodeTable 
+                nodes={nodes} 
+                onNodesUpdate={handleNodesUpdate}
+                isAnimating={isAnimating}
+              />
+            </div>
+          )}
         </div>
 
         {/* Edit Label Modal */}
@@ -889,33 +994,6 @@ export default function GraphCanvas() {
                   Cancel
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Results */}
-        {algorithmState.cycleCount > 0 && (
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="font-medium text-red-800 mb-2">
-              Found {algorithmState.cycleCount} cycle{algorithmState.cycleCount > 1 ? 's' : ''}
-            </h3>
-            <div className="text-sm text-red-700 space-y-1">
-              {foundCycles.map((cycle, idx) => (
-                <div key={idx}>{cycle.join(" → ")}</div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {pathsBetweenNodes.length > 0 && (
-          <div className="mt-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
-            <h3 className="font-medium text-teal-800 mb-2">
-              Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {selectedNodes[0]} and {selectedNodes[1]}
-            </h3>
-            <div className="text-sm text-teal-700 space-y-1">
-              {pathsBetweenNodes.map((path, idx) => (
-                <div key={idx}>{path.join(" → ")}</div>
-              ))}
             </div>
           </div>
         )}
