@@ -14,8 +14,7 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
   useEffect(() => {
     setTableNodes(nodes.map(node => ({
       id: node.id,
-      label: node.label || '',
-      timestamp: new Date().toLocaleString()
+      label: node.label || ''
     })));
   }, [nodes]);
 
@@ -50,8 +49,7 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
 
     const newNode = {
       id,
-      label: newNodeLabel,
-      timestamp: new Date().toLocaleString()
+      label: newNodeLabel
     };
 
     const updatedTableNodes = [...tableNodes, newNode];
@@ -72,7 +70,7 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
   const saveEdit = () => {
     const updatedTableNodes = tableNodes.map(node =>
       node.id === editingId
-        ? { ...node, label: editingLabel, timestamp: new Date().toLocaleString() }
+        ? { ...node, label: editingLabel }
         : node
     );
     
@@ -124,14 +122,12 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
           if (existingIndex >= 0) {
             updatedTableNodes[existingIndex] = {
               ...updatedTableNodes[existingIndex],
-              label,
-              timestamp: new Date().toLocaleString()
+              label
             };
           } else {
             updatedTableNodes.push({
               id,
-              label,
-              timestamp: new Date().toLocaleString()
+              label
             });
           }
         }
@@ -231,9 +227,6 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Label
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Updated
-              </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -242,7 +235,7 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredAndSortedNodes.length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
+                <td colSpan="3" className="px-4 py-8 text-center text-gray-500">
                   {searchTerm ? 'No nodes match your search' : 'No nodes added yet'}
                 </td>
               </tr>
@@ -273,9 +266,6 @@ export default function NodeTable({ nodes, onNodesUpdate, isAnimating }) {
                         {node.label || <em className="text-gray-400">Click to add label</em>}
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
-                    {node.timestamp}
                   </td>
                   <td className="px-4 py-3 text-right text-sm">
                     {editingId === node.id ? (

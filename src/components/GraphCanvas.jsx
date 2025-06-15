@@ -26,6 +26,12 @@ export default function GraphCanvas() {
   const width = 1000, height = 600;
   const dpr = window.devicePixelRatio || 1;
 
+  // Helper function to get node display name
+  function getNodeDisplayName(nodeId) {
+    const node = nodes.find(n => n.id === nodeId);
+    return node?.label || nodeId.toString();
+  }
+
   // --- Graph Parsing ---
   function parseInput() {
     const lines = input.split("\n").map(l => l.trim()).filter(Boolean);
@@ -239,57 +245,83 @@ export default function GraphCanvas() {
     hangTreeFromRoot(nodeId);
   }
 
-  // --- Tree Layout ---
+  // --- Enhanced Tree Layout with BFS ---
   function hangTreeFromRoot(rootOverride = null) {
     const rootId = rootOverride != null ? rootOverride : (selectedNodes.length > 0 ? selectedNodes[0] : null);
     if (rootId == null) return;
     
+    // Build adjacency list treating all edges as undirected
     const childMap = new Map(nodes.map(n => [n.id, []]));
     
     edges.forEach(e => {
-      if (isDirected) {
-        if (!e.isSelfLoop) childMap.get(e.from).push(e.to);
-      } else {
-        if (!e.isSelfLoop) {
-          childMap.get(e.from).push(e.to);
-          childMap.get(e.to).push(e.from);
-        }
+      if (!e.isSelfLoop) {
+        // Always treat as undirected for tree layout
+        childMap.get(e.from).push(e.to);
+        childMap.get(e.to).push(e.from);
       }
     });
     
+    // BFS to create tree structure
     const levels = [];
     const visited = new Set();
     const queue = [[rootId, 0, null]];
+    const parent = new Map();
     
     while (queue.length) {
-      const [node, level, parent] = queue.shift();
-      if (visited.has(node)) continue;
-      visited.add(node);
+      const [nodeId, level, parentId] = queue.shift();
+      if (visited.has(nodeId)) continue;
+      
+      visited.add(nodeId);
+      if (parentId !== null) parent.set(nodeId, parentId);
       
       if (!levels[level]) levels[level] = [];
-      levels[level].push(node);
+      levels[level].push(nodeId);
       
-      for (const child of childMap.get(node)) {
-        if (!visited.has(child)) queue.push([child, level + 1, node]);
+      // Add children to queue
+      for (const neighbor of childMap.get(nodeId)) {
+        if (!visited.has(neighbor)) {
+          queue.push([neighbor, level + 1, nodeId]);
+        }
       }
     }
     
-    const verticalGap = 80;
-    const nodeGap = 70;
-    const baseY = 60;
+    // Enhanced positioning with better spacing
     const canvasW = width;
+    const canvasH = height;
+    const topMargin = 60;
+    const levelHeight = Math.min(80, (canvasH - topMargin - 60) / Math.max(1, levels.length - 1));
+    
     const newPositions = {};
     
-    for (let lvl = 0; lvl < levels.length; lvl++) {
-      const count = levels[lvl].length;
-      const totalWidth = (count - 1) * nodeGap;
-      for (let i = 0; i < count; i++) {
-        const x = canvasW / 2 - totalWidth / 2 + i * nodeGap;
-        const y = baseY + lvl * verticalGap;
-        newPositions[levels[lvl][i]] = { x, y };
+    // Position root at top center
+    if (levels[0] && levels[0].length > 0) {
+      newPositions[levels[0][0]] = { x: canvasW / 2, y: topMargin };
+    }
+    
+    // Position other levels
+    for (let lvl = 1; lvl < levels.length; lvl++) {
+      const nodesAtLevel = levels[lvl];
+      const y = topMargin + lvl * levelHeight;
+      
+      if (nodesAtLevel.length === 1) {
+        // Single node - center it
+        newPositions[nodesAtLevel[0]] = { x: canvasW / 2, y };
+      } else {
+        // Multiple nodes - distribute evenly
+        const spacing = Math.min(120, (canvasW - 100) / Math.max(1, nodesAtLevel.length - 1));
+        const totalWidth = (nodesAtLevel.length - 1) * spacing;
+        const startX = canvasW / 2 - totalWidth / 2;
+        
+        nodesAtLevel.forEach((nodeId, index) => {
+          newPositions[nodeId] = {
+            x: startX + index * spacing,
+            y
+          };
+        });
       }
     }
     
+    // Apply positions with smooth animation effect
     setNodes(prev =>
       prev.map(n =>
         newPositions[n.id]
@@ -816,7 +848,7 @@ export default function GraphCanvas() {
                           disabled={isAnimating}
                           onClick={() => runAlgorithm("findpaths")}
                         >
-                          Show: {selectedNodes[0]} → {selectedNodes[1]}
+                          Show: {getNodeDisplayName(selectedNodes[0])} → {getNodeDisplayName(selectedNodes[1])}
                         </button>
                       )}
                     </div>
@@ -863,7 +895,7 @@ export default function GraphCanvas() {
                     </button>
                     {selectedNodes.length > 0 && (
                       <div className="mt-2 text-xs text-blue-600">
-                        Selected: {selectedNodes.join(", ")}
+                        Selected: {selectedNodes.map(id => getNodeDisplayName(id)).join(", ")}
                       </div>
                     )}
                   </div>
@@ -931,7 +963,7 @@ export default function GraphCanvas() {
                 </h3>
                 <div className="text-sm text-red-700 space-y-1">
                   {foundCycles.map((cycle, idx) => (
-                    <div key={idx}>{cycle.join(" → ")}</div>
+                    <div key={idx}>{cycle.map(nodeId => getNodeDisplayName(nodeId)).join(" → ")}</div>
                   ))}
                 </div>
               </div>
@@ -940,11 +972,11 @@ export default function GraphCanvas() {
             {pathsBetweenNodes.length > 0 && (
               <div className="mt-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
                 <h3 className="font-medium text-teal-800 mb-2">
-                  Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {selectedNodes[0]} and {selectedNodes[1]}
+                  Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {getNodeDisplayName(selectedNodes[0])} and {getNodeDisplayName(selectedNodes[1])}
                 </h3>
                 <div className="text-sm text-teal-700 space-y-1">
                   {pathsBetweenNodes.map((path, idx) => (
-                    <div key={idx}>{path.join(" → ")}</div>
+                    <div key={idx}>{path.map(nodeId => getNodeDisplayName(nodeId)).join(" → ")}</div>
                   ))}
                 </div>
               </div>
