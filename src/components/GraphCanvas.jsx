@@ -20,9 +20,8 @@ export default function GraphCanvas() {
   const [pathsBetweenNodes, setPathsBetweenNodes] = useState([]);
   const [foundCycles, setFoundCycles] = useState([]);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, nodeId: null });
-  const [showControls, setShowControls] = useState(true);
 
-  const width = 1000, height = 650;
+  const width = 1000, height = 600;
   const dpr = window.devicePixelRatio || 1;
 
   // --- Graph Parsing ---
@@ -48,7 +47,7 @@ export default function GraphCanvas() {
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
         label: "",
-        color: "#4f46e5",
+        color: "#2563eb",
         visited: false,
         distance: Infinity,
         parent: null
@@ -68,7 +67,7 @@ export default function GraphCanvas() {
     setSelectedNodes([]);
     setNodes(prev => prev.map(n => ({
       ...n,
-      color: "#4f46e5",
+      color: "#2563eb",
       visited: false,
       distance: Infinity,
       parent: null
@@ -92,7 +91,7 @@ export default function GraphCanvas() {
     return nodes.find(node => {
       const dx = x - node.x;
       const dy = y - node.y;
-      return Math.sqrt(dx * dx + dy * dy) <= 30;
+      return Math.sqrt(dx * dx + dy * dy) <= 25;
     });
   }
 
@@ -102,7 +101,6 @@ export default function GraphCanvas() {
     const node = getNodeAtPoint(pos.x, pos.y);
 
     if (node) {
-      // Always allow dragging
       setIsDragging(true);
       setDragNodeId(node.id);
       setDragOffset({
@@ -110,7 +108,6 @@ export default function GraphCanvas() {
         y: pos.y - node.y
       });
 
-      // Handle algorithm selection only if not animating
       if (!isAnimating && currentAlgorithm) {
         if (["findpaths"].includes(currentAlgorithm)) {
           if (selectedNodes.length < 2) {
@@ -163,17 +160,17 @@ export default function GraphCanvas() {
   }
 
   useEffect(() => {
-    function closeMenu() {
-      setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+    function closeMenu(e) {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, nodeId: null });
+      }
     }
     if (contextMenu.visible) {
-      window.addEventListener("mousedown", closeMenu);
-      window.addEventListener("scroll", closeMenu, true);
-      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+      document.addEventListener("click", closeMenu);
+      document.addEventListener("contextmenu", closeMenu);
       return () => {
-        window.removeEventListener("mousedown", closeMenu);
-        window.removeEventListener("scroll", closeMenu, true);
-        window.removeEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+        document.removeEventListener("click", closeMenu);
+        document.removeEventListener("contextmenu", closeMenu);
       };
     }
   }, [contextMenu.visible]);
@@ -183,7 +180,7 @@ export default function GraphCanvas() {
     const node = nodes.find(n => n.id === nodeId);
     if (node) {
       setEditingNode(nodeId);
-      setLabelInput(node.label);
+      setLabelInput(node.label || "");
     }
   }
 
@@ -197,7 +194,6 @@ export default function GraphCanvas() {
     const rootId = rootOverride != null ? rootOverride : (selectedNodes.length > 0 ? selectedNodes[0] : null);
     if (rootId == null) return;
     
-    const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]));
     const childMap = new Map(nodes.map(n => [n.id, []]));
     
     edges.forEach(e => {
@@ -228,9 +224,9 @@ export default function GraphCanvas() {
       }
     }
     
-    const verticalGap = 100;
-    const nodeGap = 80;
-    const baseY = 80;
+    const verticalGap = 80;
+    const nodeGap = 70;
+    const baseY = 60;
     const canvasW = width;
     const newPositions = {};
     
@@ -298,7 +294,7 @@ export default function GraphCanvas() {
     ];
     
     setEdges(prev => prev.map(e => ({ ...e, color: "#6b7280" })));
-    setNodes(prev => prev.map(n => ({ ...n, color: "#4f46e5" })));
+    setNodes(prev => prev.map(n => ({ ...n, color: "#2563eb" })));
     
     for (let i = 0; i < allPaths.length; i++) {
       const path = allPaths[i];
@@ -424,7 +420,7 @@ export default function GraphCanvas() {
     if (allCycles.length === 0) {
       nodes.forEach(node => setNodeColor(node.id, "#22c55e"));
       await sleep(1000);
-      nodes.forEach(node => setNodeColor(node.id, "#4f46e5"));
+      nodes.forEach(node => setNodeColor(node.id, "#2563eb"));
     } else {
       setAlgorithmState({ cycleCount: allCycles.length, cycles: allCycles });
     }
@@ -498,26 +494,25 @@ export default function GraphCanvas() {
       const b = nodes.find(n => n.id === e.to);
       if (a && b) {
         ctx.strokeStyle = e.color;
-        ctx.lineWidth = e.highlighted ? 4 : 2.5;
+        ctx.lineWidth = e.highlighted ? 3 : 2;
         ctx.lineCap = "round";
 
         if (e.isSelfLoop) {
-          // Improved self-loop rendering
-          const loopRadius = 35;
-          const angle = Math.atan2(0, 1); // Default upward
-          const loopCenterX = a.x + loopRadius * Math.cos(angle);
-          const loopCenterY = a.y - loopRadius * Math.sin(angle) - loopRadius;
+          // Clean self-loop rendering
+          const loopRadius = 25;
+          const loopCenterX = a.x;
+          const loopCenterY = a.y - 40;
           
           ctx.beginPath();
           ctx.arc(loopCenterX, loopCenterY, loopRadius, 0, 2 * Math.PI);
           ctx.stroke();
           
           if (isDirected) {
-            const arrowX = loopCenterX + loopRadius * Math.cos(Math.PI / 3);
-            const arrowY = loopCenterY + loopRadius * Math.sin(Math.PI / 3);
-            const arrowLength = 15;
+            const arrowX = loopCenterX + loopRadius * 0.7;
+            const arrowY = loopCenterY + loopRadius * 0.7;
+            const arrowLength = 10;
             const arrowAngle = Math.PI / 6;
-            const tangentAngle = Math.PI / 3 + Math.PI / 2;
+            const tangentAngle = Math.PI / 4 + Math.PI / 2;
             
             ctx.beginPath();
             ctx.moveTo(arrowX, arrowY);
@@ -534,12 +529,10 @@ export default function GraphCanvas() {
           }
           
           if (e.weight !== 1) {
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(loopCenterX - 12, loopCenterY - loopRadius - 25, 24, 16);
-            ctx.fillStyle = "#1f2937";
-            ctx.font = "bold 12px sans-serif";
+            ctx.fillStyle = "#374151";
+            ctx.font = "11px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText(e.weight, loopCenterX, loopCenterY - loopRadius - 17);
+            ctx.fillText(e.weight, loopCenterX, loopCenterY - loopRadius - 8);
           }
         } else {
           // Check if there's a reverse edge for curved rendering
@@ -552,9 +545,8 @@ export default function GraphCanvas() {
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const curvature = 0.2;
+            const curvature = 0.15;
             
-            // Calculate control point for curve
             const midX = (a.x + b.x) / 2;
             const midY = (a.y + b.y) / 2;
             const offsetX = -dy / distance * curvature * distance;
@@ -569,17 +561,15 @@ export default function GraphCanvas() {
             ctx.stroke();
             
             if (isDirected) {
-              // Calculate arrow position on curve
-              const t = 0.8; // Position along curve for arrow
+              const t = 0.8;
               const arrowX = (1-t)*(1-t)*a.x + 2*(1-t)*t*controlX + t*t*b.x;
               const arrowY = (1-t)*(1-t)*a.y + 2*(1-t)*t*controlY + t*t*b.y;
               
-              // Calculate tangent for arrow direction
               const tangentX = 2*(1-t)*(controlX - a.x) + 2*t*(b.x - controlX);
               const tangentY = 2*(1-t)*(controlY - a.y) + 2*t*(b.y - controlY);
               const angle = Math.atan2(tangentY, tangentX);
               
-              const arrowLength = 15;
+              const arrowLength = 12;
               const arrowAngle = Math.PI / 6;
               
               ctx.beginPath();
@@ -601,12 +591,10 @@ export default function GraphCanvas() {
               const weightX = (1-t)*(1-t)*a.x + 2*(1-t)*t*controlX + t*t*b.x;
               const weightY = (1-t)*(1-t)*a.y + 2*(1-t)*t*controlY + t*t*b.y;
               
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(weightX - 12, weightY - 8, 24, 16);
-              ctx.fillStyle = "#1f2937";
-              ctx.font = "bold 12px sans-serif";
+              ctx.fillStyle = "#374151";
+              ctx.font = "11px sans-serif";
               ctx.textAlign = "center";
-              ctx.fillText(e.weight, weightX, weightY + 4);
+              ctx.fillText(e.weight, weightX, weightY - 5);
             }
           } else {
             // Draw straight edge
@@ -617,10 +605,10 @@ export default function GraphCanvas() {
 
             if (isDirected) {
               const angle = Math.atan2(b.y - a.y, b.x - a.x);
-              const arrowLength = 15;
+              const arrowLength = 12;
               const arrowAngle = Math.PI / 6;
-              const endX = b.x - 32 * Math.cos(angle);
-              const endY = b.y - 32 * Math.sin(angle);
+              const endX = b.x - 27 * Math.cos(angle);
+              const endY = b.y - 27 * Math.sin(angle);
               
               ctx.beginPath();
               ctx.moveTo(endX, endY);
@@ -639,65 +627,43 @@ export default function GraphCanvas() {
             if (e.weight !== 1) {
               const midX = (a.x + b.x) / 2;
               const midY = (a.y + b.y) / 2;
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(midX - 12, midY - 8, 24, 16);
-              ctx.fillStyle = "#1f2937";
-              ctx.font = "bold 12px sans-serif";
+              ctx.fillStyle = "#374151";
+              ctx.font = "11px sans-serif";
               ctx.textAlign = "center";
-              ctx.fillText(e.weight, midX, midY + 4);
+              ctx.fillText(e.weight, midX, midY - 5);
             }
           }
         }
       }
     });
 
-    // Draw nodes with enhanced styling
+    // Draw nodes with clean styling
     nodes.forEach(n => {
       const isSelected = selectedNodes.includes(n.id);
-      const isDragged = dragNodeId === n.id;
 
-      // Node shadow
+      // Node body
       ctx.beginPath();
-      ctx.arc(n.x + 3, n.y + 3, 32, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-      ctx.fill();
-
-      // Node body with gradient
-      const gradient = ctx.createRadialGradient(n.x - 8, n.y - 8, 0, n.x, n.y, 32);
-      gradient.addColorStop(0, n.color + "FF");
-      gradient.addColorStop(1, n.color + "CC");
-      
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, 30, 0, 2 * Math.PI);
-      ctx.fillStyle = isDragged ? n.color + "DD" : gradient;
+      ctx.arc(n.x, n.y, 25, 0, 2 * Math.PI);
+      ctx.fillStyle = n.color;
       ctx.fill();
 
       // Node border
       ctx.strokeStyle = isSelected ? "#fbbf24" : "#ffffff";
-      ctx.lineWidth = isSelected ? 4 : 3;
+      ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
-
-      // Inner highlight
-      ctx.beginPath();
-      ctx.arc(n.x - 6, n.y - 6, 8, 0, 2 * Math.PI);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-      ctx.fill();
 
       // Node ID
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 18px sans-serif";
+      ctx.font = "bold 16px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-      ctx.shadowBlur = 2;
       ctx.fillText(n.id, n.x, n.y);
-      ctx.shadowBlur = 0;
 
       // Node label
       if (n.label) {
-        ctx.fillStyle = "#1f2937";
-        ctx.font = "14px sans-serif";
-        ctx.fillText(n.label, n.x, n.y + 55);
+        ctx.fillStyle = "#374151";
+        ctx.font = "12px sans-serif";
+        ctx.fillText(n.label, n.x, n.y + 40);
       }
     });
 
@@ -709,122 +675,104 @@ export default function GraphCanvas() {
 
   // --- UI ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Graph Algorithm Visualizer
-              </h1>
-              <p className="text-gray-600 mt-1">Interactive graph visualization with advanced algorithms</p>
-            </div>
-            <button
-              onClick={() => setShowControls(!showControls)}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg"
-            >
-              {showControls ? "Hide Controls" : "Show Controls"}
-            </button>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Simple Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <h1 className="text-xl font-semibold text-gray-900">Graph Editor</h1>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        {showControls && (
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl mb-6 overflow-hidden border border-gray-200">
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Controls</h2>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">Graph Definition</label>
-                    <textarea
-                      className="w-full border-2 border-gray-200 rounded-xl p-4 font-mono text-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 bg-gray-50"
-                      rows={8}
-                      value={input}
-                      onChange={e => setInput(e.target.value)}
-                      placeholder="Nodes: 0, 1, 2&#10;Edges: 0 1 [weight]&#10;Self-loops: 2 2 [weight]"
-                      disabled={isAnimating}
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 shadow-lg"
-                      onClick={parseInput}
-                      disabled={isAnimating}
-                    >
-                      Generate Graph
-                    </button>
-                    <button
-                      className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 shadow-lg"
-                      onClick={resetAlgorithmState}
-                      disabled={isAnimating}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isDirected}
-                        onChange={e => setIsDirected(e.target.checked)}
-                        disabled={isAnimating}
-                        className="mr-3 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                      />
-                      Directed Graph
-                    </label>
-                  </div>
+      <div className="max-w-6xl mx-auto px-4 py-4">
+        {/* Compact Controls */}
+        <div className="bg-white rounded-lg border border-gray-200 mb-4">
+          <div className="p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Graph Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Graph</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={6}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  disabled={isAnimating}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                    onClick={parseInput}
+                    disabled={isAnimating}
+                  >
+                    Generate
+                  </button>
+                  <button
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                    onClick={resetAlgorithmState}
+                    disabled={isAnimating}
+                  >
+                    Reset
+                  </button>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-700">Algorithms</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    <button
-                      className={`px-6 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
-                        currentAlgorithm === "cycles" 
-                          ? "bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-red-200" 
-                          : "bg-gradient-to-r from-red-100 to-pink-100 hover:from-red-200 hover:to-pink-200 text-red-700"
-                      }`}
-                      onClick={() => runAlgorithm("cycles")}
-                      disabled={isAnimating}
-                    >
-                      🔍 Detect Cycles
-                    </button>
-                    <button
-                      className={`px-6 py-4 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg ${
-                        currentAlgorithm === "findpaths" 
-                          ? "bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-teal-200" 
-                          : "bg-gradient-to-r from-teal-100 to-cyan-100 hover:from-teal-200 hover:to-cyan-200 text-teal-700"
-                      }`}
-                      onClick={() => {
-                        resetAlgorithmState();
-                        setCurrentAlgorithm("findpaths");
-                      }}
-                      disabled={isAnimating}
-                    >
-                      🛤️ Find All Paths
-                    </button>
-                  </div>
-                  
+              {/* Algorithms */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Algorithms</label>
+                <div className="space-y-2">
+                  <button
+                    className={`w-full px-3 py-2 rounded text-sm ${
+                      currentAlgorithm === "cycles" 
+                        ? "bg-red-600 text-white" 
+                        : "bg-red-100 hover:bg-red-200 text-red-700"
+                    }`}
+                    onClick={() => runAlgorithm("cycles")}
+                    disabled={isAnimating}
+                  >
+                    Detect Cycles
+                  </button>
+                  <button
+                    className={`w-full px-3 py-2 rounded text-sm ${
+                      currentAlgorithm === "findpaths" 
+                        ? "bg-teal-600 text-white" 
+                        : "bg-teal-100 hover:bg-teal-200 text-teal-700"
+                    }`}
+                    onClick={() => {
+                      resetAlgorithmState();
+                      setCurrentAlgorithm("findpaths");
+                    }}
+                    disabled={isAnimating}
+                  >
+                    Find Paths
+                  </button>
                   {currentAlgorithm === "findpaths" && selectedNodes.length === 2 && (
                     <button
-                      className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg"
+                      className="w-full bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded text-sm"
                       disabled={isAnimating}
                       onClick={() => runAlgorithm("findpaths")}
                     >
-                      Show Paths: {selectedNodes[0]} → {selectedNodes[1]}
+                      Show: {selectedNodes[0]} → {selectedNodes[1]}
                     </button>
                   )}
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-700">Layout & Settings</h3>
+              {/* Settings */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Settings</label>
+                <div className="space-y-3">
+                  <label className="flex items-center text-sm">
+                    <input
+                      type="checkbox"
+                      checked={isDirected}
+                      onChange={e => setIsDirected(e.target.checked)}
+                      disabled={isAnimating}
+                      className="mr-2"
+                    />
+                    Directed
+                  </label>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-2">Animation Speed</label>
+                    <label className="block text-xs text-gray-600 mb-1">Speed: {speed}ms</label>
                     <input
                       type="range"
                       min="100"
@@ -832,37 +780,35 @@ export default function GraphCanvas() {
                       value={speed}
                       onChange={e => setSpeed(Number(e.target.value))}
                       disabled={isAnimating}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                      className="w-full"
                     />
-                    <div className="text-xs text-gray-500 mt-1 text-center">{speed} ms</div>
                   </div>
-                  <button
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 shadow-lg"
-                    onClick={() => hangTreeFromRoot()}
-                    disabled={isAnimating || selectedNodes.length === 0}
-                  >
-                    🌲 Arrange as Tree from Selected
-                  </button>
-                  <div className="text-xs text-gray-500 mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <span className="font-semibold">💡 Pro Tips:</span><br/>
-                    • <span className="font-medium">Right-click</span> any node for quick actions<br/>
-                    • <span className="font-medium">Drag</span> nodes to reposition them<br/>
-                    • Select nodes by clicking for algorithms
-                  </div>
-                  {selectedNodes.length > 0 && (currentAlgorithm !== "findpaths" || selectedNodes.length === 1) && (
-                    <div className="mt-2 text-xs text-indigo-700 font-medium bg-indigo-50 p-2 rounded-lg">
-                      Selected: Node {selectedNodes[0]}
-                    </div>
-                  )}
                 </div>
+              </div>
+
+              {/* Layout */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Layout</label>
+                <button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm disabled:opacity-50"
+                  onClick={() => hangTreeFromRoot()}
+                  disabled={isAnimating || selectedNodes.length === 0}
+                >
+                  Tree Layout
+                </button>
+                {selectedNodes.length > 0 && (
+                  <div className="mt-2 text-xs text-blue-600">
+                    Selected: {selectedNodes.join(", ")}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Canvas & Results */}
-        <div className="flex flex-col items-center">
-          <div className="border-2 border-gray-200 rounded-2xl bg-white shadow-2xl relative overflow-hidden">
+        {/* Canvas */}
+        <div className="flex justify-center">
+          <div className="border border-gray-300 rounded-lg bg-white relative">
             <canvas
               ref={canvasRef}
               width={width * dpr}
@@ -870,8 +816,7 @@ export default function GraphCanvas() {
               style={{ 
                 width: `${width}px`, 
                 height: `${height}px`, 
-                display: "block", 
-                background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                display: "block",
                 cursor: isAnimating ? 'wait' : (isDragging ? 'grabbing' : 'grab')
               }}
               onMouseDown={handleMouseDown}
@@ -888,126 +833,92 @@ export default function GraphCanvas() {
                   position: "fixed",
                   left: contextMenu.x,
                   top: contextMenu.y,
-                  zIndex: 9999,
+                  zIndex: 1000,
                   background: "white",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  minWidth: 200,
-                  overflow: "hidden"
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  borderRadius: 4,
+                  border: "1px solid #d1d5db",
+                  minWidth: 150
                 }}
-                onContextMenu={e => e.preventDefault()}
               >
                 <button
-                  className="block w-full text-left px-4 py-3 hover:bg-indigo-50 text-sm font-medium text-gray-700 transition-colors"
+                  className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
                   onClick={() => editNodeLabel(contextMenu.nodeId)}
                 >
-                  ✏️ Edit Label
+                  Edit Label
                 </button>
                 <button
-                  className="block w-full text-left px-4 py-3 hover:bg-green-50 text-sm font-medium text-gray-700 transition-colors border-t border-gray-100"
+                  className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-t border-gray-200"
                   onClick={() => hangTreeFromRootRightClick(contextMenu.nodeId)}
                 >
-                  🌲 Arrange Tree from Here
+                  Tree from Here
                 </button>
               </div>
             )}
           </div>
+        </div>
 
-          {/* Edit node label dialog */}
-          {editingNode !== null && (
-            <div className="mt-6 bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <h3 className="font-semibold mb-4 text-gray-900">Edit Label for Node {editingNode}</h3>
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={labelInput}
-                  onChange={e => setLabelInput(e.target.value)}
-                  placeholder="Enter node label"
-                  className="border-2 border-gray-200 px-4 py-2 rounded-lg flex-1 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200"
-                  onKeyPress={e => e.key === "Enter" && saveLabel()}
-                  autoFocus
-                />
+        {/* Edit Label Modal */}
+        {editingNode !== null && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-80">
+              <h3 className="font-medium mb-4">Edit Label for Node {editingNode}</h3>
+              <input
+                type="text"
+                value={labelInput}
+                onChange={e => setLabelInput(e.target.value)}
+                placeholder="Enter label"
+                className="w-full border border-gray-300 rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveLabel();
+                  if (e.key === 'Escape') cancelEdit();
+                }}
+                autoFocus
+              />
+              <div className="flex gap-2">
                 <button
                   onClick={saveLabel}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
                 >
                   Save
                 </button>
                 <button
                   onClick={cancelEdit}
-                  className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg"
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
                 >
                   Cancel
                 </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Results & Paths */}
-          {algorithmState.cycleCount > 0 && (
-            <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-6 shadow-lg">
-              <p className="text-lg text-red-700 font-semibold mb-4 flex items-center gap-2">
-                🔍 Found {algorithmState.cycleCount} cycle{algorithmState.cycleCount > 1 ? 's' : ''}:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {foundCycles.map((cycle, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-3 border border-red-200">
-                    <span className="text-sm font-medium text-gray-600">Cycle {idx + 1}:</span>
-                    <div className="text-sm text-gray-800 font-mono mt-1">
-                      [{cycle.join(" → ")}]
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {pathsBetweenNodes.length > 0 && (
-            <div className="mt-6 bg-teal-50 border border-teal-200 rounded-xl p-6 shadow-lg">
-              <p className="text-lg text-teal-700 font-semibold mb-4 flex items-center gap-2">
-                🛤️ Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {selectedNodes[0]} and {selectedNodes[1]}:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pathsBetweenNodes.map((path, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-3 border border-teal-200">
-                    <span className="text-sm font-medium text-gray-600">Path {idx + 1}:</span>
-                    <div className="text-sm text-gray-800 font-mono mt-1">
-                      [{path.join(" → ")}]
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Instructions */}
-      <div className="mt-8 mb-8 text-center text-sm text-gray-600 max-w-4xl mx-auto px-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-200">
-          <h3 className="font-semibold text-gray-800 mb-4">How to Use</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-            <div>
-              <h4 className="font-medium text-gray-700 mb-2">🎯 Basic Interactions</h4>
-              <ul className="space-y-1 text-xs">
-                <li>• <strong>Drag nodes</strong> to reposition them</li>
-                <li>• <strong>Right-click nodes</strong> for quick actions</li>
-                <li>• <strong>Click nodes</strong> to select for algorithms</li>
-                <li>• Toggle between directed/undirected graphs</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-700 mb-2">🔬 Algorithms</h4>
-              <ul className="space-y-1 text-xs">
-                <li>• <strong>Find All Paths:</strong> Select 2 nodes, then run</li>
-                <li>• <strong>Detect Cycles:</strong> Finds all cycles in graph</li>
-                <li>• <strong>Tree Layout:</strong> Arranges graph as tree</li>
-                <li>• Self-loops and weighted edges supported</li>
-              </ul>
+        {/* Results */}
+        {algorithmState.cycleCount > 0 && (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="font-medium text-red-800 mb-2">
+              Found {algorithmState.cycleCount} cycle{algorithmState.cycleCount > 1 ? 's' : ''}
+            </h3>
+            <div className="text-sm text-red-700 space-y-1">
+              {foundCycles.map((cycle, idx) => (
+                <div key={idx}>{cycle.join(" → ")}</div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
+        
+        {pathsBetweenNodes.length > 0 && (
+          <div className="mt-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
+            <h3 className="font-medium text-teal-800 mb-2">
+              Found {pathsBetweenNodes.length} path{pathsBetweenNodes.length > 1 ? 's' : ''} between {selectedNodes[0]} and {selectedNodes[1]}
+            </h3>
+            <div className="text-sm text-teal-700 space-y-1">
+              {pathsBetweenNodes.map((path, idx) => (
+                <div key={idx}>{path.join(" → ")}</div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
